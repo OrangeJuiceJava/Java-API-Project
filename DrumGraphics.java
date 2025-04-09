@@ -264,7 +264,6 @@ public class DrumGraphics
         Track track = new Sequence(Sequence.PPQ, (bpm * 4)).createTrack();//Create a new track
         int ppq = bpm * 4;
         int stepSize = ppq / 4;
-        long  currentTick = 0;
         track.add(MainScreen.createTempoEvent(bpm, 0));//Add initial tempo event (use your tempo or bpm value here)
         track.add(MainScreen.createProgramChangeEvent(0, 9, 0));//Add instrument change
 
@@ -276,21 +275,9 @@ public class DrumGraphics
                 if (button.getBackground() == Color.DARK_GRAY)//If button has been clicked
                 {
                     int drumNote = getMidiGridNote(i);//Map row to drum sound
-                    //Add the first note-on event
-                    ShortMessage msgOn = new ShortMessage();
-                    msgOn.setMessage(ShortMessage.NOTE_ON, 9, drumNote, 100);
-                    MidiEvent noteOnEvent = new MidiEvent(msgOn, currentTick);
-                    track.add(noteOnEvent);
-
-                    //Add the note-off event
-                    ShortMessage msgOff = new ShortMessage();
-                    msgOff.setMessage(ShortMessage.NOTE_OFF, 9, drumNote, 100);
-                    MidiEvent noteOffEvent = new MidiEvent(msgOff, currentTick + stepSize);
-                    track.add(noteOffEvent);
-                    /*track.add(makeMidiEvent(ShortMessage.NOTE_ON, 9, drumNote, 100, currentTick));//NOTE_ON event for the drum sound
-                    track.add(makeMidiEvent(ShortMessage.NOTE_OFF, 9, drumNote, 100, currentTick + stepSize));//NOTE_OFF event for the drum sound*/
+                    track.add(makeMidiEvent(ShortMessage.NOTE_ON, 9, drumNote, 100, j * stepSize));//NOTE_ON event for the drum sound
+                    track.add(makeMidiEvent(ShortMessage.NOTE_OFF, 9, drumNote, 100, (j * stepSize) + (stepSize / 2)));//NOTE_OFF event for the drum sound
                 }
-                currentTick += stepSize;
             }
         }
         return track;

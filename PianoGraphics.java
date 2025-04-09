@@ -105,7 +105,7 @@ public class PianoGraphics extends JPanel
         frame.setLayout(new BorderLayout());
 
         //Creates a sequence and track
-        sequence = new Sequence(Sequence.PPQ, 10);//Pulses per quarter note
+        sequence = new Sequence(Sequence.PPQ, bpm * 4);//Pulses per quarter note
         midiTrack = sequence.createTrack();
         sequencer = MidiSystem.getSequencer();
         sequencer.open();
@@ -336,7 +336,7 @@ public class PianoGraphics extends JPanel
         int stepSize = bpm;
         long currentTick = 0;
         track.add(MainScreen.createTempoEvent(bpm, 0));//Add initial tempo event
-        track.add(MainScreen.createProgramChangeEvent(programNum, pianoChannelNum, 0));//Add instrument change at start
+        //track.add(MainScreen.createProgramChangeEvent(programNum, pianoChannelNum, 0));//Add instrument change at start
         
         for (int row = 0; row < numBeats; row++)//Loop through each beat and key
         {
@@ -365,9 +365,7 @@ public class PianoGraphics extends JPanel
                 }
                 currentTick += stepSize;//Move forward every step
             }
-            //currentTick = 0;//Reset tick for next note column
         }
-        System.out.println("Created key track with " + track.size() + " events.");
         return track;
     }
 

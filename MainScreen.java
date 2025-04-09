@@ -197,7 +197,6 @@ public class MainScreen extends JPanel implements ActionListener
                     seq = MidiSystem.getSequencer(true);
                     seq.open();
                     seq.setSequence(sequence);
-                    seq.setTickPosition(0);
                     seq.setTempoInBPM(recordedTempo);
                     seq.start();
                 }
