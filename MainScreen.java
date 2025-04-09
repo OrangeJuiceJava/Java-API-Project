@@ -171,7 +171,7 @@ public class MainScreen extends JPanel implements ActionListener
         }
         try
         {
-            Sequence sequence = new Sequence(Sequence.PPQ, ((int) recordedTempo / 4));
+            Sequence sequence = new Sequence(Sequence.PPQ, ((int) recordedTempo * 4));
             Track seqTrack = sequence.createTrack();
             seqTrack.add(createTempoEvent(getRecordedTempo(), 0));//Add initial tempo event at tick 0
             if (channelNum != 9)//Add program change event at tick 0, unless it's a drum channel
@@ -196,7 +196,8 @@ public class MainScreen extends JPanel implements ActionListener
                     }
                     seq = MidiSystem.getSequencer(true);
                     seq.open();
-                    seq.setSequence(sequence);//Just set the sequence directly now!
+                    seq.setSequence(sequence);
+                    seq.setTickPosition(0);
                     seq.setTempoInBPM(recordedTempo);
                     seq.start();
                 }
@@ -215,7 +216,7 @@ public class MainScreen extends JPanel implements ActionListener
         }
     }
 
-    //Creates a tempo event (meta message) at a specific tick
+    //Creates a tempo event at a specific tick
     public static MidiEvent createTempoEvent(float bpm, long tick)
     {
         try
