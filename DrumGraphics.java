@@ -2,7 +2,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import javax.sound.midi.*;
-import java.util.concurrent.*;
 
 public class DrumGraphics
 {

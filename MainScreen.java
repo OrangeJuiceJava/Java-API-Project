@@ -3,7 +3,6 @@ import java.awt.*;
 import java.awt.event.*;
 import javax.sound.midi.*;
 import java.util.*;
-import java.util.List;
 import java.util.concurrent.*;
 
 public class MainScreen extends JPanel implements ActionListener
@@ -19,6 +18,7 @@ public class MainScreen extends JPanel implements ActionListener
     private static ArrayList<Track> recordedTracks = new ArrayList<Track>();
     private static float recordedTempo;//Sets tempo
     private static ExecutorService executor = Executors.newFixedThreadPool(10); //Thread pool for playing tracks concurrently
+    private static ArrayList<Sequencer> activeSequencers = new ArrayList<>();//Tracks each sequencer
 
     Toolkit toolkit = Toolkit.getDefaultToolkit();
     Dimension screenSize = toolkit.getScreenSize();
@@ -91,7 +91,7 @@ public class MainScreen extends JPanel implements ActionListener
         dynamicsPanel.add(tempoUp);
 
         //Creates and adds buttons to buttonPanel
-        for (int i = 1; i < 7; i++)
+        for (int i = 1; i < 6; i++)
         {
             JButton addTrack = new JButton("Add"  + i);
             final int trackNumber = i;//Gets track number for channels
@@ -187,7 +187,7 @@ public class MainScreen extends JPanel implements ActionListener
             }
 
             //Create a track button to play this sequence
-            JButton trackButton = new JButton("Track " + (finalTrackIndex + 1));
+            JButton trackButton = new JButton("Track " + (selectedTrack));
             trackButton.addActionListener(e -> {
                 try
                 {
@@ -260,52 +260,48 @@ public class MainScreen extends JPanel implements ActionListener
     {
         try
         {
-            //Create a new Sequence to hold the Track
-            Sequence sequence = new Sequence(Sequence.PPQ, (int) recordedTempo * 4);
-            Track sequenceTrack = sequence.createTrack();
-
-            for (int i = 0; i < track.size(); i++)//Add events from the existing Track to the Sequence
+            Sequence combinedSeq = new Sequence(Sequence.PPQ, (int) recordedTempo * 4);
+            Track combinedTrack = combinedSeq.createTrack();
+            
+            for (Track trak : recordedTracks)//Add each track's events to the combined track
             {
-                MidiEvent event = track.get(i);
-                sequenceTrack.add(event);
+                for (int i = 0; i < trak.size(); i++)
+                {
+                    MidiEvent event = trak.get(i);
+                    combinedTrack.add(event);//Add events to the combined track
+                }
             }
-
-            if (seq == null)// Check if the sequencer is null or not open, and open it if necessary
+            if (seq == null || !seq.isOpen())//Ensure the sequencer is open and ready
             {
                 seq = MidiSystem.getSequencer(true);
-            }
-            if (!seq.isOpen())//Open the sequencer if it's not already open
-            {
                 seq.open();
             }
-            if (seq.isRunning())// Stop the sequencer if it's already running
-            {
-                seq.stop();
-            }
-            seq.setSequence(sequence);
+            //Create a new sequencer and start it with the sequence
+            seq.setSequence(combinedSeq);
             seq.setTempoInBPM(recordedTempo);
+            seq.setLoopCount(Sequencer.LOOP_CONTINUOUSLY); //Loop indefinitely
+            seq.setTickPosition(0);//Synchronize all tracks to start at same time
             seq.start();
-        }
+            activeSequencers.add(seq);//Adds current sequencer to list
+        } 
         catch (Exception ex)
         {
             ex.printStackTrace();
         }
     }
 
-    //Stops all tracks
-    public static void shutDownNow()
+    //Method to stop all running sequencers
+    public static void stopAllTracks()
     {
-        try
+        for (Sequencer sequencer : activeSequencers)
         {
-            if (executor != null && !executor.isShutdown())//Attempt to stop all tasks immediately
+            if (sequencer.isRunning())
             {
-                List<Runnable> notExecutedTasks = executor.shutdownNow();//Calling shutdownNow to attempt an immediate termination of all tasks
+                sequencer.stop();
+                sequencer.close();
             }
         }
-        catch (Exception ex)
-        {
-            ex.printStackTrace();
-        }
+        activeSequencers.clear();  // Clear the list of active sequencers
     }
 
     //Method to reinitialize the executor if it's shutdown
@@ -440,10 +436,7 @@ public class MainScreen extends JPanel implements ActionListener
         else if (e.getSource() == playButton)
         {
             reinitializeExecutorIfNeeded();//Reinitialize executor before submtting tasks
-            if (executor == null || executor.isShutdown())
-            {
-                executor = Executors.newFixedThreadPool(3);//Reinitialize the executor if it's shutdown
-            }
+            activeSequencers.clear();//Clears previously active sequencers before playing new ones
             for (Track track : recordedTracks)
             {
                 executor.submit(() ->
@@ -454,11 +447,7 @@ public class MainScreen extends JPanel implements ActionListener
         }
         else if (e.getSource() == stopButton)
         {
-            //shutDownNow();//Stop all tracks immediately
-            if (seq != null && seq.isRunning())
-            {
-                seq.stop();//Stop the sequencer if it's running
-            }
+            stopAllTracks();//Stops all tracks
         }
         else if (e.getSource() == tempoDown)
         {

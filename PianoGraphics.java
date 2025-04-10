@@ -4,7 +4,6 @@ import java.awt.*;
 import java.awt.event.*;
 import javax.sound.midi.*;
 import java.util.*;
-import java.util.concurrent.*;
 
 public class PianoGraphics extends JPanel
 {
@@ -23,10 +22,9 @@ public class PianoGraphics extends JPanel
     private Track midiTrack;//Independent stream of MIDI events
     private static Sequence sequence;//Contains musical info
     private static Sequencer sequencer;//Plays back a MIDI sequence
-    private static PianoGraphics instance;
     private long startTime;
-    private boolean isRecording = false;
     private static ArrayList<Integer> recordedInstruments = new ArrayList<>();
+    private static int volume;//Each instrument's volume
 
     //For playing
     private static final int numKeys = 25;
@@ -58,43 +56,49 @@ public class PianoGraphics extends JPanel
         synth.open();
         pianoChannel = synth.getChannels()[channelNum];
         pianoChannelNum = channelNum;
-        instance = this;
 
         //Changes sound MIDI channel plays
         if (sound.equals("Piano 1"))
         {
             pianoChannel.programChange(1);
             programNum = 1;
+            volume = 80;
         }
         else if (sound.equals("Guitar 1"))
         {
             pianoChannel.programChange(26);
             programNum = 26;
+            volume = 100;
         }
         else if (sound.equals("Synth 1"))
         {
             pianoChannel.programChange(81);
             programNum = 81;
+            volume = 65;
         }
         else if (sound.equals("Bass 1"))
         {
             pianoChannel.programChange(34);
             programNum = 34;
+            volume = 115;
         }
         else if (sound.equals("Trumpet"))
         {
             pianoChannel.programChange(57);
             programNum = 57;
+            volume = 65;
         }
         else if (sound.equals("Pipe"))
         {
             pianoChannel.programChange(78);
             programNum = 78;
+            volume = 80;
         }
         else if (sound.equals("Pad"))
         {
             pianoChannel.programChange(89);
             programNum = 89;
+            volume = 100;
         }
 
         frame = new JFrame("Piano");
@@ -152,7 +156,7 @@ public class PianoGraphics extends JPanel
             {
                 try
                 {
-                    Track keySeq = createKeyTrack();//Creates a track from the grid pattern
+                    Track keySeq = createKeyTrack(volume);//Creates a track from the grid pattern
                     MainScreen.addTrack(keySeq, programNum, channelNum);
                 }
                 catch (Exception ex)
@@ -161,7 +165,6 @@ public class PianoGraphics extends JPanel
                 }
             }
         });
-
         octavePanel.add(octaveDown);
         octavePanel.add(octaveLabel);
         octavePanel.add(octaveUp);
@@ -183,9 +186,6 @@ public class PianoGraphics extends JPanel
                 keyButton.setBackground(keyColor);
                 keyButton.setForeground(Color.BLACK);
                 gridKeys[row][col] = keyButton;
-                final int soundIndex = row;
-                final int beatIndex = col;
-
                 keyButton.addActionListener(e ->
                 {
                     //Toggle the button ON or OFF
@@ -197,6 +197,7 @@ public class PianoGraphics extends JPanel
                     {
                         keyButton.setBackground(Color.LIGHT_GRAY);//Inactive beat
                     }
+                    frame.requestFocusInWindow();
                 });
                 gridKeys[row][col] = keyButton;
                 gridPanel.add(keyButton);
@@ -329,7 +330,7 @@ public class PianoGraphics extends JPanel
     }
 
     //Method to create a track from the grid pattern in PianoGraphics
-    public Track createKeyTrack()
+    public Track createKeyTrack(int volume)
     {
         Track track = sequence.createTrack();
         int stepSize = bpm * 2;
@@ -348,12 +349,12 @@ public class PianoGraphics extends JPanel
                     try
                     {
                         ShortMessage msgOn = new ShortMessage();
-                        msgOn.setMessage(ShortMessage.NOTE_ON, pianoChannelNum, midiNote, 100);
+                        msgOn.setMessage(ShortMessage.NOTE_ON, pianoChannelNum, midiNote, volume);
                         MidiEvent noteOnEvent = new MidiEvent(msgOn, i * stepSize);
                         track.add(noteOnEvent);
 
                         ShortMessage msgOff = new ShortMessage();
-                        msgOff.setMessage(ShortMessage.NOTE_OFF, pianoChannelNum, midiNote, 100);
+                        msgOff.setMessage(ShortMessage.NOTE_OFF, pianoChannelNum, midiNote, volume);
                         MidiEvent noteOffEvent = new MidiEvent(msgOff, (i * stepSize) + stepSize);
                         track.add(noteOffEvent);
                     }
@@ -406,28 +407,6 @@ public class PianoGraphics extends JPanel
         {
             pianoChannel.noteOn(midiNote, 800);
         }
-
-        //Recording
-        if (instance.isRecording)
-        {
-            long currentNanoTime = System.nanoTime();
-            long elapsedNanoTime = currentNanoTime - instance.startTime;
-
-            //Use higher precision for tick conversion (time / nano-to-seconds * PPQ)
-            double elapsedSeconds = elapsedNanoTime / 1_000_000_000.0;//Convert to seconds
-            long currentTick = (long) (elapsedSeconds * sequence.getResolution());//Convert to ticks
-            try
-            {
-                ShortMessage msg = new ShortMessage();
-                msg.setMessage(ShortMessage.NOTE_ON, pianoChannelNum, midiNote, 100);//Records event
-                MidiEvent event = new MidiEvent(msg, currentTick);
-                instance.midiTrack.add(event);
-            }
-            catch (Exception e)
-            {
-                e.printStackTrace();
-            }
-        }
     }
 
     //Stop playing MIDI note
@@ -437,24 +416,6 @@ public class PianoGraphics extends JPanel
         if (midiNote >= 0 && midiNote <= 127)
         {
             pianoChannel.noteOff(midiNote);
-        }
-
-        if (instance.isRecording)
-        {
-            long currentNanoTime = System.nanoTime();
-            long elapsedNanoTime = currentNanoTime - instance.startTime;
-            double elapsedSeconds = elapsedNanoTime / 1_000_000_000.0;
-            long currentTick = (long) (elapsedSeconds * sequence.getResolution());
-            try
-            {
-                ShortMessage msg = new ShortMessage();
-                msg.setMessage(ShortMessage.NOTE_OFF, pianoChannelNum, midiNote, 100);//Stops recording
-                instance.midiTrack.add(new MidiEvent(msg, currentTick));
-            }
-            catch (Exception e)
-            {
-                e.printStackTrace();
-            }
         }
     }
 
