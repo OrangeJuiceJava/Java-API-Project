@@ -3,6 +3,7 @@ import java.awt.*;
 import java.awt.event.*;
 import javax.sound.midi.*;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.*;
 
 public class MainScreen extends JPanel implements ActionListener
@@ -17,6 +18,7 @@ public class MainScreen extends JPanel implements ActionListener
     private static Sequencer seq;
     private static ArrayList<Track> recordedTracks = new ArrayList<Track>();
     private static float recordedTempo;//Sets tempo
+    private static ExecutorService executor = Executors.newFixedThreadPool(10); //Thread pool for playing tracks concurrently
 
     Toolkit toolkit = Toolkit.getDefaultToolkit();
     Dimension screenSize = toolkit.getScreenSize();
@@ -253,6 +255,68 @@ public class MainScreen extends JPanel implements ActionListener
         }
     }
 
+    //Plays all tracks concurrently
+    public static void playTrack(Track track)
+    {
+        try
+        {
+            //Create a new Sequence to hold the Track
+            Sequence sequence = new Sequence(Sequence.PPQ, (int) recordedTempo * 4);
+            Track sequenceTrack = sequence.createTrack();
+
+            for (int i = 0; i < track.size(); i++)//Add events from the existing Track to the Sequence
+            {
+                MidiEvent event = track.get(i);
+                sequenceTrack.add(event);
+            }
+
+            if (seq == null)// Check if the sequencer is null or not open, and open it if necessary
+            {
+                seq = MidiSystem.getSequencer(true);
+            }
+            if (!seq.isOpen())//Open the sequencer if it's not already open
+            {
+                seq.open();
+            }
+            if (seq.isRunning())// Stop the sequencer if it's already running
+            {
+                seq.stop();
+            }
+            seq.setSequence(sequence);
+            seq.setTempoInBPM(recordedTempo);
+            seq.start();
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+        }
+    }
+
+    //Stops all tracks
+    public static void shutDownNow()
+    {
+        try
+        {
+            if (executor != null && !executor.isShutdown())//Attempt to stop all tasks immediately
+            {
+                List<Runnable> notExecutedTasks = executor.shutdownNow();//Calling shutdownNow to attempt an immediate termination of all tasks
+            }
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+        }
+    }
+
+    //Method to reinitialize the executor if it's shutdown
+    public void reinitializeExecutorIfNeeded()
+    {
+        if (executor == null || executor.isShutdown())
+        {
+            executor = Executors.newFixedThreadPool(3);//Reinitialize the executor with a fixed thread pool
+        }
+    }
+
     @Override
     public void actionPerformed(ActionEvent e)
     {
@@ -375,7 +439,26 @@ public class MainScreen extends JPanel implements ActionListener
         }
         else if (e.getSource() == playButton)
         {
-            
+            reinitializeExecutorIfNeeded();//Reinitialize executor before submtting tasks
+            if (executor == null || executor.isShutdown())
+            {
+                executor = Executors.newFixedThreadPool(3);//Reinitialize the executor if it's shutdown
+            }
+            for (Track track : recordedTracks)
+            {
+                executor.submit(() ->
+                {
+                    playTrack(track);//Play each track concurrently
+                });
+            }
+        }
+        else if (e.getSource() == stopButton)
+        {
+            //shutDownNow();//Stop all tracks immediately
+            if (seq != null && seq.isRunning())
+            {
+                seq.stop();//Stop the sequencer if it's running
+            }
         }
         else if (e.getSource() == tempoDown)
         {

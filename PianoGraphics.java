@@ -18,7 +18,6 @@ public class PianoGraphics extends JPanel
     private static int currentOctave = baseOctave;
     private static JFrame frame;
     private static int programNum;//Determines instrument
-    private static int octaveOffset;//For octave changes
 
     //Stuff for recording
     private Track midiTrack;//Independent stream of MIDI events
@@ -105,7 +104,7 @@ public class PianoGraphics extends JPanel
         frame.setLayout(new BorderLayout());
 
         //Creates a sequence and track
-        sequence = new Sequence(Sequence.PPQ, bpm * 4);//Pulses per quarter note
+        sequence = new Sequence(Sequence.PPQ, (bpm * 4));//Pulses per quarter note
         midiTrack = sequence.createTrack();
         sequencer = MidiSystem.getSequencer();
         sequencer.open();
@@ -333,29 +332,29 @@ public class PianoGraphics extends JPanel
     public Track createKeyTrack()
     {
         Track track = sequence.createTrack();
-        int stepSize = bpm;
-        long currentTick = 0;
+        int stepSize = bpm * 2;
+        int i = 0;
         track.add(MainScreen.createTempoEvent(bpm, 0));//Add initial tempo event
-        //track.add(MainScreen.createProgramChangeEvent(programNum, pianoChannelNum, 0));//Add instrument change at start
+        track.add(MainScreen.createProgramChangeEvent(programNum, pianoChannelNum, 0));//Add instrument change at start
         
-        for (int row = 0; row < numBeats; row++)//Loop through each beat and key
+        for (int row = numBeats - 1; row >= 0; row--)//Loop through each beat and key bottom to top row
         {
             for (int col = 0; col < numKeys; col++)
             {
                 if (gridKeys[row][col].getBackground() == Color.DARK_GRAY)//If the key is pressed (Dark Gray indicates active key)
                 {
-                    int midiNote = noteToMidi(keyNotes[col]) + (currentOctave * 12);
+                    int midiNote = getMidiNoteForIndex(col);
                     //Create a new note-on event
                     try
                     {
                         ShortMessage msgOn = new ShortMessage();
                         msgOn.setMessage(ShortMessage.NOTE_ON, pianoChannelNum, midiNote, 100);
-                        MidiEvent noteOnEvent = new MidiEvent(msgOn, currentTick);
+                        MidiEvent noteOnEvent = new MidiEvent(msgOn, i * stepSize);
                         track.add(noteOnEvent);
 
                         ShortMessage msgOff = new ShortMessage();
                         msgOff.setMessage(ShortMessage.NOTE_OFF, pianoChannelNum, midiNote, 100);
-                        MidiEvent noteOffEvent = new MidiEvent(msgOff, currentTick + stepSize);
+                        MidiEvent noteOffEvent = new MidiEvent(msgOff, (i * stepSize) + stepSize);
                         track.add(noteOffEvent);
                     }
                     catch (Exception e)
@@ -363,8 +362,8 @@ public class PianoGraphics extends JPanel
                         e.printStackTrace();
                     }
                 }
-                currentTick += stepSize;//Move forward every step
             }
+            i++;
         }
         return track;
     }
@@ -402,21 +401,8 @@ public class PianoGraphics extends JPanel
     //Play MIDI note
     public static void playNote(int index)
     {
-        int octaveOffset;
-        if (index < 12)//Differs two octaves shown on keyboard
-        {
-            octaveOffset = currentOctave;
-        }
-        else if (index < 24)
-        {
-            octaveOffset = currentOctave + 1;
-        }
-        else
-        {
-            octaveOffset = currentOctave + 2;
-        }
-        int midiNote = noteToMidi(keyNotes[index]) + (octaveOffset * 12) + 12;
-        if (midiNote >= 0 && midiNote <= 127)//Ensure valid MIDI range
+        int midiNote = getMidiNoteForIndex(index);
+        if (midiNote >= 0 && midiNote <= 127)
         {
             pianoChannel.noteOn(midiNote, 800);
         }
@@ -447,19 +433,7 @@ public class PianoGraphics extends JPanel
     //Stop playing MIDI note
     public static void stopNote(int index)
     {
-        if (index < 12)
-        {
-            octaveOffset = currentOctave;
-        }
-        else if (index < 24)
-        {
-            octaveOffset = currentOctave + 1;
-        }
-        else
-        {
-            octaveOffset = currentOctave + 2;
-        }
-        int midiNote = noteToMidi(keyNotes[index]) + (octaveOffset * 12) + 12;
+        int midiNote = getMidiNoteForIndex(index);
         if (midiNote >= 0 && midiNote <= 127)
         {
             pianoChannel.noteOff(midiNote);
@@ -518,6 +492,14 @@ public class PianoGraphics extends JPanel
         }
     }
 
+    //Finds right MIDI note octave
+    public static int getMidiNoteForIndex(int index)
+    {
+        int baseNote = noteToMidi(keyNotes[index % 12]);
+        int octaveShift = index / 12;//0 for 0-11, 1 for 12-23
+        return (currentOctave + octaveShift + 1) * 12 + baseNote;//+1 because MIDI note 0 is C-1
+    }
+
     //Changes octave
     public static void changeOctave(int change, JLabel octaveLabel)
     {
@@ -538,20 +520,5 @@ public class PianoGraphics extends JPanel
         {
             return 0;//Default instrument if trackIndex is invalid
         }
-    }
-
-    public void playNoteForKey(int key)
-    {
-        int midiNote = noteToMidi(keyNotes[key]) + (octaveOffset * 12) + 12;
-        pianoChannel.noteOn(midiNote, 100);//Play the note (velocity 100)
-        try
-        {
-            Thread.sleep(100);//Let it ring for 100 ms
-        }
-        catch (InterruptedException e)
-        {
-            e.printStackTrace();
-        }
-        pianoChannel.noteOff(midiNote);//Stop the note
     }
 }

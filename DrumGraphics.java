@@ -261,7 +261,8 @@ public class DrumGraphics
     //Turns drum grid into a playable music sequence
     public Track createDrumTrack() throws Exception
     {
-        Track track = new Sequence(Sequence.PPQ, (bpm * 4)).createTrack();//Create a new track
+        Sequence seq = new Sequence(Sequence.PPQ, (bpm * 4));//Create a new track
+        Track track = seq.createTrack();
         int ppq = bpm * 4;
         int stepSize = ppq / 4;
         track.add(MainScreen.createTempoEvent(bpm, 0));//Add initial tempo event (use your tempo or bpm value here)
